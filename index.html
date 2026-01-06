@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vector My Shit — Instant Image to SVG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0b;
+            --bg-card: #141416;
+            --bg-elevated: #1a1a1d;
+            --border: #2a2a2e;
+            --text-primary: #fafafa;
+            --text-secondary: #888;
+            --text-muted: #555;
+            --accent: #00ff88;
+            --accent-dim: #00ff8833;
+            --accent-glow: #00ff8866;
+            --error: #ff4444;
+            --warning: #ffaa00;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Subtle grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(var(--border) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 60px 60px;
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 3rem 0 4rem;
+        }
+
+        .logo {
+            font-family: 'Space Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+
+        .logo span {
+            color: var(--accent);
+        }
+
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        /* Main upload area */
+        .upload-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            .upload-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .panel-badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border-radius: 4px;
+            font-family: 'Space Mono', monospace;
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--bg-elevated);
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .drop-zone.has-file {
+            border-style: solid;
+            border-color: var(--border);
+        }
+
+        .drop-zone-icon {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1.5rem;
+            opacity: 0.5;
+        }
+
+        .drop-zone-text {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-zone-hint {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* Preview image */
+        .preview-container {
+            width: 100%;
+            height: 100%;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .preview-container img,
+        .preview-container svg {
+            max-width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+        }
+
+        .preview-placeholder {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        /* Checkered background for SVG preview */
+        .svg-preview {
+            background-image: 
+                linear-gradient(45deg, #222 25%, transparent 25%),
+                linear-gradient(-45deg, #222 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #222 75%),
+                linear-gradient(-45deg, transparent 75%, #222 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* Controls */
+        .controls-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .control-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-family: 'Space Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+        }
+
+        .info-icon-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .info-icon {
+            width: 16px;
+            height: 16px;
+            cursor: help;
+            opacity: 0.5;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            border: 1.5px solid currentColor;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1;
+            text-transform: lowercase;
+        }
+
+        .info-icon-wrapper:hover .info-icon {
+            opacity: 1;
+            color: var(--accent);
+            background: var(--accent-dim);
+            filter: drop-shadow(0 0 6px var(--accent-glow));
+        }
+
+        .tooltip {
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.75rem 1rem;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            text-transform: none;
+            letter-spacing: normal;
+            white-space: normal;
+            width: 280px;
+            max-width: 90vw;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            line-height: 1.5;
+        }
+
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--border);
+        }
+
+        .tooltip::before {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: var(--bg-elevated);
+            margin-top: -1px;
+        }
+
+        .info-icon-wrapper:hover .tooltip {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .control-value {
+            font-size: 0.75rem;
+            color: var(--accent);
+            margin-left: auto;
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        select:focus, input[type="range"]:focus {
+            border-color: var(--accent);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 40px;
+            padding: 0 0.5rem;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            margin-top: -7px;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        /* Buttons */
+        .button-row {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 1rem 2.5rem;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-dark);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            box-shadow: 0 0 30px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--text-secondary);
+        }
+
+        .btn-icon {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Status messages */
+        .status {
+            text-align: center;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.processing {
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+
+        .status.error {
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .status.success {
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+
+        /* Stats */
+        .stats {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'Space Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--bg-dark);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Advanced toggle */
+        .advanced-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .advanced-toggle:hover {
+            color: var(--text-primary);
+        }
+
+        .advanced-toggle svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s;
+        }
+
+        .advanced-toggle.open svg {
+            transform: rotate(180deg);
+        }
+
+        .advanced-controls {
+            display: none;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .advanced-controls.show {
+            display: block;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="logo">Vector <span>My Shit</span></h1>
+            <p class="tagline">Transform raster images into clean, scalable SVG vectors</p>
+        </header>
+
+        <div id="status" class="status"></div>
+
+        <div class="upload-section">
+            <!-- Input Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Original</span>
+                    <span class="panel-badge">PNG, JPG, GIF, WebP</span>
+                </div>
+                <div id="dropZone" class="drop-zone">
+                    <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <p class="drop-zone-text">Drop your image here</p>
+                    <p class="drop-zone-hint">or click to browse • Max 10MB</p>
+                </div>
+                <input type="file" id="fileInput" class="file-input" accept=".png,.jpg,.jpeg,.gif,.bmp,.webp">
+                <div id="inputPreview" class="preview-container" style="display: none;"></div>
+            </div>
+
+            <!-- Output Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Vectorized</span>
+                    <span class="panel-badge">SVG</span>
+                </div>
+                <div id="outputPreview" class="preview-container svg-preview">
+                    <div class="preview-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity: 0.3; margin-bottom: 1rem;">
+                            <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        <p>Your vectorized SVG will appear here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls-section">
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label class="control-label">
+                        Color Mode
+                        <span class="info-icon-wrapper">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip">Choose between keeping all colors from your image or converting to black and white only.</span>
+                        </span>
+                    </label>
+                    <select id="colormode">
+                        <option value="color">Full Color</option>
+                        <option value="binary">Black & White</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="control-label">
+                        Simplification
+                        <span class="info-icon-wrapper">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip">Removes tiny artifacts and noise from your image. Lower values keep more detail, higher values create a cleaner result.</span>
+                        </span>
+                        <span id="speckleValue" class="control-value">2</span>
+                    </label>
+                    <input type="range" id="filter_speckle" min="0" max="20" value="2">
+                </div>
+                <div class="control-group">
+                    <label class="control-label">
+                        Color Precision
+                        <span class="info-icon-wrapper">
+                            <span class="info-icon">i</span>
+                            <span class="tooltip">How many distinct colors to detect in your image. Higher values = more accurate colors but larger file size. Lower values = simpler color palette.</span>
+                        </span>
+                        <span id="precisionValue" class="control-value">8</span>
+                    </label>
+                    <input type="range" id="color_precision" min="1" max="10" value="8">
+                </div>
+            </div>
+
+            <div class="advanced-toggle" id="advancedToggle">
+                <span>Advanced Options</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 9l-7 7-7-7"/>
+                </svg>
+            </div>
+
+            <div class="advanced-controls" id="advancedControls">
+                <div class="controls-grid">
+                    <div class="control-group">
+                        <label class="control-label">
+                            Path Mode
+                            <span class="info-icon-wrapper">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip">Controls how edges are drawn. Pixel Perfect = sharpest, preserves exact edges. Sharp Edges = crisp angular lines. Smooth Curves = rounded, softer lines.</span>
+                            </span>
+                        </label>
+                        <select id="mode">
+                            <option value="none">Pixel Perfect (Sharpest)</option>
+                            <option value="polygon">Sharp Edges (Polygon)</option>
+                            <option value="spline">Smooth Curves (Spline)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">
+                            Layer Mode
+                            <span class="info-icon-wrapper">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip">How colors are layered in the vector. Stacked = colors build on top of each other. Cutout = each color creates a separate shape.</span>
+                            </span>
+                        </label>
+                        <select id="hierarchical">
+                            <option value="stacked">Stacked</option>
+                            <option value="cutout">Cutout</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">
+                            Corner Threshold
+                            <span class="info-icon-wrapper">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip">How sensitive the detection is for sharp corners. Lower values = more corners detected (sharper angles). Higher values = fewer corners (smoother curves).</span>
+                            </span>
+                            <span id="cornerValue" class="control-value">60</span>
+                        </label>
+                        <input type="range" id="corner_threshold" min="0" max="180" value="60">
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">
+                            Path Smoothing
+                            <span class="info-icon-wrapper">
+                                <span class="info-icon">i</span>
+                                <span class="tooltip">How much to smooth the paths. Lower values = sharper, crisper edges. Higher values = smoother, softer lines (can look blurry). For crisp results, keep this low (0-2).</span>
+                            </span>
+                            <span id="lengthValue" class="control-value">1.0</span>
+                        </label>
+                        <input type="range" id="length_threshold" min="0" max="20" value="1" step="0.5">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="button-row">
+            <button id="convertBtn" class="btn btn-primary" disabled>
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                Vector My Shit
+            </button>
+            <button id="downloadBtn" class="btn btn-secondary" disabled>
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                Download SVG
+            </button>
+        </div>
+
+        <div id="stats" class="stats" style="display: none;">
+            <div class="stat">
+                <div id="originalSize" class="stat-value">-</div>
+                <div class="stat-label">Original</div>
+            </div>
+            <div class="stat">
+                <div id="svgSize" class="stat-value">-</div>
+                <div class="stat-label">SVG Size</div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Built with precision by <a href="https://warez.agency" target="_blank">Warez</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const inputPreview = document.getElementById('inputPreview');
+        const outputPreview = document.getElementById('outputPreview');
+        const convertBtn = document.getElementById('convertBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusEl = document.getElementById('status');
+        const statsEl = document.getElementById('stats');
+        const advancedToggle = document.getElementById('advancedToggle');
+        const advancedControls = document.getElementById('advancedControls');
+
+        // State
+        let currentFile = null;
+        let currentFileId = null;
+        let currentSvg = null;
+
+        // Range input value displays
+        document.getElementById('filter_speckle').addEventListener('input', (e) => {
+            document.getElementById('speckleValue').textContent = e.target.value;
+        });
+        document.getElementById('color_precision').addEventListener('input', (e) => {
+            document.getElementById('precisionValue').textContent = e.target.value;
+        });
+        document.getElementById('corner_threshold').addEventListener('input', (e) => {
+            document.getElementById('cornerValue').textContent = e.target.value;
+        });
+        document.getElementById('length_threshold').addEventListener('input', (e) => {
+            document.getElementById('lengthValue').textContent = e.target.value;
+        });
+
+        // Advanced toggle
+        advancedToggle.addEventListener('click', () => {
+            advancedToggle.classList.toggle('open');
+            advancedControls.classList.toggle('show');
+        });
+
+        // File handling
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            // Validate
+            const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/webp'];
+            if (!validTypes.includes(file.type)) {
+                showStatus('Please upload a PNG, JPG, GIF, BMP, or WebP image', 'error');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                showStatus('File too large. Maximum size is 10MB', 'error');
+                return;
+            }
+
+            currentFile = file;
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                dropZone.style.display = 'none';
+                inputPreview.style.display = 'flex';
+                inputPreview.innerHTML = `<img src="${e.target.result}" alt="Original">`;
+                inputPreview.classList.add('fade-in');
+            };
+            reader.readAsDataURL(file);
+
+            convertBtn.disabled = false;
+            hideStatus();
+            
+            // Reset output
+            outputPreview.innerHTML = `
+                <div class="preview-placeholder">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity: 0.3; margin-bottom: 1rem;">
+                        <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    <p>Click "Vector My Shit" to convert</p>
+                </div>
+            `;
+            downloadBtn.disabled = true;
+            statsEl.style.display = 'none';
+        }
+
+        // Convert
+        convertBtn.addEventListener('click', async () => {
+            if (!currentFile) return;
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            formData.append('colormode', document.getElementById('colormode').value);
+            formData.append('mode', document.getElementById('mode').value);
+            formData.append('hierarchical', document.getElementById('hierarchical').value);
+            formData.append('filter_speckle', document.getElementById('filter_speckle').value);
+            formData.append('color_precision', document.getElementById('color_precision').value);
+            formData.append('corner_threshold', document.getElementById('corner_threshold').value);
+            formData.append('length_threshold', document.getElementById('length_threshold').value);
+
+            convertBtn.disabled = true;
+            convertBtn.innerHTML = '<div class="spinner"></div> Processing...';
+            showStatus('Converting your image to vector...', 'processing');
+
+            try {
+                const response = await fetch('/api/convert', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Conversion failed');
+                }
+
+                currentFileId = data.file_id;
+                currentSvg = data.svg;
+
+                // Show SVG preview
+                outputPreview.innerHTML = data.svg;
+                outputPreview.classList.add('fade-in');
+
+                // Show stats
+                document.getElementById('originalSize').textContent = formatBytes(data.stats.original_size);
+                document.getElementById('svgSize').textContent = formatBytes(data.stats.svg_size);
+                statsEl.style.display = 'flex';
+                statsEl.classList.add('fade-in');
+
+                downloadBtn.disabled = false;
+                showStatus('Conversion complete!', 'success');
+                
+                setTimeout(hideStatus, 3000);
+
+            } catch (error) {
+                showStatus(error.message, 'error');
+            } finally {
+                convertBtn.disabled = false;
+                convertBtn.innerHTML = `
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    Vector My Shit
+                `;
+            }
+        });
+
+        // Download
+        downloadBtn.addEventListener('click', () => {
+            if (!currentSvg) return;
+            
+            const blob = new Blob([currentSvg], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'vectorized.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Helpers
+        function showStatus(message, type) {
+            statusEl.textContent = message;
+            statusEl.className = `status show ${type}`;
+        }
+
+        function hideStatus() {
+            statusEl.className = 'status';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Allow re-uploading by clicking preview
+        inputPreview.addEventListener('click', () => {
+            fileInput.click();
+        });
+    </script>
+</body>
+</html>
